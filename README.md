@@ -1,4 +1,4 @@
-VibeVault — Backend API
+## VibeVault — Backend API
 
 The VibeVault backend powers authentication, API handling, and all communication between the frontend, Supabase, and external music services like Spotify/Apple. Built with Node.js and Express, this backend currently focuses on auth + external API interaction — with no user-managed database yet.
 
