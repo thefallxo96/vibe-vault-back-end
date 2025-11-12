@@ -38,7 +38,7 @@ No internal database yet (future MongoDB integration optional)
 /server.js
 
 🔧 Installation
-git clone https://github.com/YOUR-USERNAME/vibevault-backend.git
+git clone https://github.com/thefallxo96/vibevault-backend.git
 cd vibevault-backend
 npm install
 npm run dev
