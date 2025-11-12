@@ -7,11 +7,15 @@ dotenv.config();
 
 const app = express();
 app.use(cors());
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  next();
+});
 app.use(express.json());
 
 const PORT = process.env.PORT || 5001;
 
-// ✅ 1️⃣ Spotify Token Endpoint (for testing or frontend use)
+// ✅ Spotify Token Endpoint (optional but useful for testing)
 app.get("/api/spotify/token", async (req, res) => {
   try {
     const auth = Buffer.from(
@@ -35,17 +39,17 @@ app.get("/api/spotify/token", async (req, res) => {
   }
 });
 
-// ✅ 2️⃣ Spotify Search Endpoint (Shuffle + Fallback)
+// ✅ Spotify Search Endpoint (playable fallback)
 app.get("/api/spotify/search", async (req, res) => {
   const { mood } = req.query;
   if (!mood) return res.status(400).json({ error: "Missing mood parameter" });
 
   try {
-    // Request Spotify access token
     const auth = Buffer.from(
       `${process.env.SPOTIFY_CLIENT_ID}:${process.env.SPOTIFY_CLIENT_SECRET}`
     ).toString("base64");
 
+    // Get token
     const tokenRes = await fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
       headers: {
@@ -59,7 +63,7 @@ app.get("/api/spotify/search", async (req, res) => {
     if (!tokenData.access_token)
       return res.status(500).json({ error: "Failed to get token" });
 
-    // Search Spotify for tracks
+    // Search Spotify
     const searchRes = await fetch(
       `https://api.spotify.com/v1/search?q=${encodeURIComponent(
         mood + " playlist music"
@@ -70,47 +74,41 @@ app.get("/api/spotify/search", async (req, res) => {
     );
 
     const searchData = await searchRes.json();
-    console.log("🟢 Spotify raw tracks:", searchData.tracks?.items?.slice(0, 3));
+    const items = searchData.tracks?.items || [];
 
+    // Map playable tracks with fallback preview
+    const playableTracks = items.map((t) => ({
+      id: t.id,
+      title: t.name,
+      artist: t.artists.map((a) => a.name).join(", "),
+      albumArt: t.album.images?.[0]?.url,
+      previewUrl: t.preview_url || "/which-one-dirty-remix.mp3",
+    }));
 
-    // Map playable tracks only
-    const playableTracks =
-      searchData.tracks?.items
-        ?.filter((t) => t.preview_url || t.id)
-        ?.map((t) => ({
-          id: t.id,
-          title: t.name,
-          artist: t.artists.map((a) => a.name).join(", "),
-          albumArt: t.album.images?.[0]?.url,
-          previewUrl: t.preview_url,
-        })) || [];
-
-    // Shuffle the list randomly and select up to 10
-    const shuffled = playableTracks.sort(() => 0.5 - Math.random());
-    const finalTracks = shuffled.slice(0, 10);
-
-    // Fallback if no Spotify previews exist
-    if (finalTracks.length === 0) {
-      console.warn(`⚠️ No Spotify previews for mood "${mood}", using fallback.`);
-      return res.json([
-        {
-          id: "local-default",
-          title: "Which One (DJ Yonny Remix)",
-          artist: "Drake & Central Cee",
-          albumArt: "/album-art.jpg",
-          previewUrl: "/which-one-dirty-remix.mp3",
-        },
-      ]);
-    }
-
-    res.json(finalTracks);
+    // Shuffle and return up to 10
+    const shuffled = playableTracks.sort(() => 0.5 - Math.random()).slice(0, 10);
+    res.json(shuffled);
   } catch (err) {
     console.error("❌ Spotify Search Error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+// ✅ Serve frontend build if deployed together
+import path from "path";
+import { fileURLToPath } from "url";
 
-// ✅ 3️⃣ Start the server
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+if (process.env.NODE_ENV === "production") {
+  const clientPath = path.resolve(__dirname, "../vibe-vault-front-end/build");
+  app.use(express.static(clientPath));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(clientPath, "index.html"));
+  });
+}
+
 app.listen(PORT, () => {
   console.log(`✅ Spotify token server running on port ${PORT}`);
 });
